@@ -1,40 +1,46 @@
-name: Push WordPress to AWS ECR
+name: Deploy to Amazon ECR
 
 on:
   push:
     branches: [ "main" ]
 
-# OIDC 必備權限
+# 1. 這是 OIDC 必須新增的權限設定
 permissions:
-  id-token: write
-  contents: read
+  id-token: write   # 這是申請臨時金鑰必備的
+  contents: read    # 讀取程式碼內容
+
+env:
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: cjc102-10-ecr-repo
+  # 2. 這是從你截圖中看到的真實角色 ARN
+  AWS_ROLE_ARN: arn:aws:iam::754515738597:role/GITHUB
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        # 請確保 GitHub Secrets 已設定 AWS_ROLE_ARN
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ap-northeast-1
+      # 3. 修改登入 AWS 的方式 (使用 OIDC)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build, tag, and push image to Amazon ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: cjc102-10-ecr-repo  # 已更新為你的倉庫名稱
-        IMAGE_TAG: latest
-      run: |
-        # 編譯映像檔
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        # 推送到你的 AWS ECR
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      # 4. Build 與 Push 步驟
+      - name: Build, tag, and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          # 建議使用 latest 或是 github.sha 做為標籤
+          IMAGE_TAG: latest
+        run: |
+          # 編譯你在本地測試成功的 Nginx + PHP 8.3 Alpine Dockerfile
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # 推送到 AWS ECR
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
