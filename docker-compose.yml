@@ -1,20 +1,38 @@
+version: '3.8'
+
 services:
   db:
-    image: mariadb:10.11
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: wordpress
       MYSQL_USER: wpuser
       MYSQL_PASSWORD: wppassword
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wp-network
 
   wordpress:
-    build: .
+    build: .  # 這會讀取你目前的 Dockerfile
+    container_name: wp-app
+    restart: always
     ports:
       - "8080:80"
     environment:
-      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_USER: wpuser
       WORDPRESS_DB_PASSWORD: wppassword
       WORDPRESS_DB_NAME: wordpress
     depends_on:
       - db
+    networks:
+      - wp-network
+
+volumes:
+  db_data:
+
+networks:
+  wp-network:
